@@ -281,10 +281,9 @@ footer{border-top:1px solid var(--border);background:var(--surface);padding:18px
 
 <script>
 // ── SHEET URLS ───────────────────────────────────────────────────
-const SHEET_ECOM_INV  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS491b645SEE37s9gBgzSRraCSq3gQ2we7tBOKVPxSbtHcpwbHyvQljSl3UVwRe761shxTcJx5CjegW/pub?gid=690974035&single=true&output=csv';
-const SHEET_QERR_INV  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS491b645SEE37s9gBgzSRraCSq3gQ2we7tBOKVPxSbtHcpwbHyvQljSl3UVwRe761shxTcJx5CjegW/pub?gid=1203550555&single=true&output=csv';
-const SHEET_FULFIL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS491b645SEE37s9gBgzSRraCSq3gQ2we7tBOKVPxSbtHcpwbHyvQljSl3UVwRe761shxTcJx5CjegW/pub?gid=1214865587&single=true&output=csv';
-const PROXY           = 'https://api.allorigins.win/get?url=';
+const SHEET_ECOM_INV  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS491b645SEE37s9gBgzSRraCSq3gQ2we7tBOKVPxSbtHcpwbHyvQljSl3UVwRe761shxTcJx5CjegW/pub?output=csv&gid=690974035';
+const SHEET_QERR_INV  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS491b645SEE37s9gBgzSRraCSq3gQ2we7tBOKVPxSbtHcpwbHyvQljSl3UVwRe761shxTcJx5CjegW/pub?output=csv&gid=1203550555';
+const SHEET_FULFIL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS491b645SEE37s9gBgzSRraCSq3gQ2we7tBOKVPxSbtHcpwbHyvQljSl3UVwRe761shxTcJx5CjegW/pub?output=csv&gid=1214865587';
 
 // ── STATE ────────────────────────────────────────────────────────
 let ECOM = [], QERR = [];
@@ -293,9 +292,34 @@ let ovFilter = 'all', eFilter = 'all', qFilter = 'all', ovSrc = 'both';
 
 // ── FETCH ────────────────────────────────────────────────────────
 async function fetchCSV(url) {
-  const res = await fetch(PROXY + encodeURIComponent(url));
-  const json = await res.json();
-  return json.contents;
+  // Google published sheets work with direct browser fetch (no-cors redirect)
+  // The browser follows the redirect automatically when the sheet is published publicly
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const text = await res.text();
+      if (text.trim().length > 10) return text;
+    }
+  } catch(e) {}
+
+  // Fallback: try via a lightweight proxy
+  try {
+    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json.contents && json.contents.trim().length > 10) return json.contents;
+    }
+  } catch(e) {}
+
+  try {
+    const res = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`);
+    if (res.ok) {
+      const text = await res.text();
+      if (text.trim().length > 10) return text;
+    }
+  } catch(e) {}
+
+  throw new Error('Could not fetch sheet. Make sure it is published publicly in Google Sheets (File → Share → Publish to web).');
 }
 
 function parseCSV(text) {
